@@ -70,6 +70,7 @@ app.whenReady().then(() => {
   globalShortcut.register('CommandOrControl+Option+=', () => {
     opacityLevel = Math.min(opacityLevel + 0.1, 1);
     myWindow.setOpacity(opacityLevel);
+    console.log("update")
     console.log(`Increased opacity: ${opacityLevel}`);
   });
 
