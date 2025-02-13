@@ -49,7 +49,7 @@ app.whenReady().then(() => {
       </head>
       <body>
         <div class="drag-bar"></div>
-        <iframe class="web-content" src="https://google.com" frameborder="0"></iframe>
+        <iframe class="web-content" src="https://thatoneweirddev.github.io/arch/" frameborder="0"></iframe>
       </body>
     </html>`);
 
