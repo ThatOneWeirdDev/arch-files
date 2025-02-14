@@ -1,4 +1,3 @@
-// main.js in your GitHub repository
 const { app, BrowserWindow, session, globalShortcut } = require('electron');
 let myWindow;
 let opacityLevel = 0.5; // Start at 50% opacity
@@ -67,17 +66,26 @@ app.whenReady().then(() => {
     }
   );
 
-  globalShortcut.register('CommandOrControl+Option+=', () => {
+  const increaseOpacity = () => {
     opacityLevel = Math.min(opacityLevel + 0.05, 1);
     myWindow.setOpacity(opacityLevel);
     console.log(`Increased opacity: ${opacityLevel}`);
-  });
+  };
 
-  globalShortcut.register('CommandOrControl+Option+-', () => {
+  const decreaseOpacity = () => {
     opacityLevel = Math.max(opacityLevel - 0.05, 0.02);
     myWindow.setOpacity(opacityLevel);
     console.log(`Decreased opacity: ${opacityLevel}`);
-  });
+  };
+
+  // Register shortcuts for both Command+Option and Control+Alt
+  ['CommandOrControl+Option+=', 'Control+Alt+='].forEach(shortcut =>
+    globalShortcut.register(shortcut, increaseOpacity)
+  );
+
+  ['CommandOrControl+Option+-', 'Control+Alt+-'].forEach(shortcut =>
+    globalShortcut.register(shortcut, decreaseOpacity)
+  );
 
   globalShortcut.register('Command+H', () => {
     if (myWindow) {
