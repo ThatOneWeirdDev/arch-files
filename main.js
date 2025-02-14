@@ -1,4 +1,5 @@
 const { app, BrowserWindow, session, globalShortcut } = require('electron');
+
 let myWindow;
 let opacityLevel = 0.5; // Start at 50% opacity
 
@@ -18,7 +19,12 @@ app.whenReady().then(() => {
       contextIsolation: false,
       webSecurity: true,
       enableWebGL: true,
-      backgroundThrottling: false
+      backgroundThrottling: false,
+      offscreen: false, // Ensures fast rendering on-screen
+      enableBlinkFeatures: "WebGL2,Accelerated2dCanvas",
+      disableBlinkFeatures: "AutomationControlled",
+      webviewTag: true, // Ensures WebView support
+      spellcheck: false, // Reduces unnecessary processing
     }
   });
 
@@ -52,9 +58,10 @@ app.whenReady().then(() => {
       </body>
     </html>`);
 
+  // Optimize session handling (async processing)
   session.defaultSession.webRequest.onHeadersReceived(
     { urls: ["*://*/*"] },
-    (details, callback) => {
+    async (details, callback) => {
       const responseHeaders = details.responseHeaders;
       Object.keys(responseHeaders).forEach(key => {
         if (key.toLowerCase() === 'x-frame-options' ||
@@ -65,6 +72,10 @@ app.whenReady().then(() => {
       callback({ cancel: false, responseHeaders });
     }
   );
+
+  // Boost rendering priority
+  myWindow.webContents.setBackgroundThrottling(false);
+  myWindow.webContents.setFrameRate(120); // High frame rate for smooth rendering
 
   const increaseOpacity = () => {
     opacityLevel = Math.min(opacityLevel + 0.05, 1);
