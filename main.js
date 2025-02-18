@@ -1,10 +1,10 @@
 const { app, BrowserWindow, session, globalShortcut } = require('electron');
 
-let myWindow;
-let opacityLevel = 0.5; // Start at 50% opacity
-
-// Fix transparency issues on Windows (MUST be before app is ready)
+// Ensure disableHardwareAcceleration is called BEFORE app is ready
 app.disableHardwareAcceleration();
+
+let myWindow;
+let opacityLevel = 0.5;
 
 app.whenReady().then(() => {
   myWindow = new BrowserWindow({
@@ -17,7 +17,7 @@ app.whenReady().then(() => {
     frame: false,
     alwaysOnTop: true,
     resizable: true,
-    backgroundColor: '#00000000', // Ensures transparency works properly
+    backgroundColor: '#00000000',
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -42,7 +42,7 @@ app.whenReady().then(() => {
             height: 30px;
             background: rgba(0, 0, 0, 0.2);
             -webkit-app-region: drag;
-            -webkit-user-select: none; /* Fix for Windows drag */
+            -webkit-user-select: none;
             position: absolute;
             top: 0;
             left: 0;
@@ -63,7 +63,6 @@ app.whenReady().then(() => {
       </body>
     </html>`);
 
-  // Optimize session handling
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const responseHeaders = { ...details.responseHeaders };
     for (const key of Object.keys(responseHeaders)) {
@@ -74,7 +73,6 @@ app.whenReady().then(() => {
     callback({ cancel: false, responseHeaders });
   });
 
-  // Boost rendering priority
   myWindow.webContents.setBackgroundThrottling(false);
   myWindow.webContents.setFrameRate(120);
 
@@ -86,7 +84,6 @@ app.whenReady().then(() => {
     console.log(`Opacity: ${opacityLevel}`);
   };
 
-  // Register shortcuts
   globalShortcut.register('CommandOrControl+Option+=', () => adjustOpacity(true));
   globalShortcut.register('Control+Alt+=', () => adjustOpacity(true));
   globalShortcut.register('CommandOrControl+Option+-', () => adjustOpacity(false));
