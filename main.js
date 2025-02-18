@@ -3,6 +3,9 @@ const { app, BrowserWindow, session, globalShortcut } = require('electron');
 let myWindow;
 let opacityLevel = 0.5; // Start at 50% opacity
 
+// Fix transparency issues on Windows
+app.disableHardwareAcceleration();
+
 app.whenReady().then(() => {
   myWindow = new BrowserWindow({
     width: 400,
@@ -14,17 +17,18 @@ app.whenReady().then(() => {
     frame: false,
     alwaysOnTop: true,
     resizable: true,
+    backgroundColor: '#00000000', // Ensures transparency works properly
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
       webSecurity: true,
       enableWebGL: true,
       backgroundThrottling: false,
-      offscreen: false, // Ensures fast rendering on-screen
+      offscreen: false,
       enableBlinkFeatures: "WebGL2,Accelerated2dCanvas",
       disableBlinkFeatures: "AutomationControlled",
-      webviewTag: true, // Ensures WebView support
-      spellcheck: false, // Reduces unnecessary processing
+      webviewTag: true,
+      spellcheck: false,
     }
   });
 
@@ -38,6 +42,7 @@ app.whenReady().then(() => {
             height: 30px;
             background: rgba(0, 0, 0, 0.2);
             -webkit-app-region: drag;
+            -webkit-user-select: none; /* Ensures drag works on Windows */
             position: absolute;
             top: 0;
             left: 0;
@@ -58,7 +63,7 @@ app.whenReady().then(() => {
       </body>
     </html>`);
 
-  // Optimize session handling (async processing)
+  // Optimize session handling
   session.defaultSession.webRequest.onHeadersReceived(
     { urls: ["*://*/*"] },
     async (details, callback) => {
@@ -75,7 +80,7 @@ app.whenReady().then(() => {
 
   // Boost rendering priority
   myWindow.webContents.setBackgroundThrottling(false);
-  myWindow.webContents.setFrameRate(120); // High frame rate for smooth rendering
+  myWindow.webContents.setFrameRate(120);
 
   const increaseOpacity = () => {
     opacityLevel = Math.min(opacityLevel + 0.05, 1);
@@ -89,7 +94,7 @@ app.whenReady().then(() => {
     console.log(`Decreased opacity: ${opacityLevel}`);
   };
 
-  // Register shortcuts for both Command+Option and Control+Alt
+  // Register shortcuts for opacity control
   ['CommandOrControl+Option+=', 'Control+Alt+='].forEach(shortcut =>
     globalShortcut.register(shortcut, increaseOpacity)
   );
