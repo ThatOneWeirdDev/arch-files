@@ -3,7 +3,7 @@ const { app, BrowserWindow, session, globalShortcut } = require('electron');
 let myWindow;
 let opacityLevel = 0.5; // Start at 50% opacity
 
-// Fix transparency issues on Windows
+// Fix transparency issues on Windows (MUST be before app is ready)
 app.disableHardwareAcceleration();
 
 app.whenReady().then(() => {
@@ -42,7 +42,7 @@ app.whenReady().then(() => {
             height: 30px;
             background: rgba(0, 0, 0, 0.2);
             -webkit-app-region: drag;
-            -webkit-user-select: none; /* Ensures drag works on Windows */
+            -webkit-user-select: none; /* Fix for Windows drag */
             position: absolute;
             top: 0;
             left: 0;
@@ -64,50 +64,37 @@ app.whenReady().then(() => {
     </html>`);
 
   // Optimize session handling
-  session.defaultSession.webRequest.onHeadersReceived(
-    { urls: ["*://*/*"] },
-    async (details, callback) => {
-      const responseHeaders = details.responseHeaders;
-      Object.keys(responseHeaders).forEach(key => {
-        if (key.toLowerCase() === 'x-frame-options' ||
-            key.toLowerCase() === 'content-security-policy') {
-          delete responseHeaders[key];
-        }
-      });
-      callback({ cancel: false, responseHeaders });
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const responseHeaders = { ...details.responseHeaders };
+    for (const key of Object.keys(responseHeaders)) {
+      if (key.toLowerCase() === 'x-frame-options' || key.toLowerCase() === 'content-security-policy') {
+        delete responseHeaders[key];
+      }
     }
-  );
+    callback({ cancel: false, responseHeaders });
+  });
 
   // Boost rendering priority
   myWindow.webContents.setBackgroundThrottling(false);
   myWindow.webContents.setFrameRate(120);
 
-  const increaseOpacity = () => {
-    opacityLevel = Math.min(opacityLevel + 0.05, 1);
+  const adjustOpacity = (increase) => {
+    opacityLevel = increase
+      ? Math.min(opacityLevel + 0.05, 1)
+      : Math.max(opacityLevel - 0.05, 0.02);
     myWindow.setOpacity(opacityLevel);
-    console.log(`Increased opacity: ${opacityLevel}`);
+    console.log(`Opacity: ${opacityLevel}`);
   };
 
-  const decreaseOpacity = () => {
-    opacityLevel = Math.max(opacityLevel - 0.05, 0.02);
-    myWindow.setOpacity(opacityLevel);
-    console.log(`Decreased opacity: ${opacityLevel}`);
-  };
-
-  // Register shortcuts for opacity control
-  ['CommandOrControl+Option+=', 'Control+Alt+='].forEach(shortcut =>
-    globalShortcut.register(shortcut, increaseOpacity)
-  );
-
-  ['CommandOrControl+Option+-', 'Control+Alt+-'].forEach(shortcut =>
-    globalShortcut.register(shortcut, decreaseOpacity)
-  );
+  // Register shortcuts
+  globalShortcut.register('CommandOrControl+Option+=', () => adjustOpacity(true));
+  globalShortcut.register('Control+Alt+=', () => adjustOpacity(true));
+  globalShortcut.register('CommandOrControl+Option+-', () => adjustOpacity(false));
+  globalShortcut.register('Control+Alt+-', () => adjustOpacity(false));
 
   globalShortcut.register('Command+H', () => {
-    if (myWindow) {
-      myWindow.hide();
-      console.log("Window hidden (Cmd+H pressed)");
-    }
+    myWindow.hide();
+    console.log("Window hidden (Cmd+H pressed)");
   });
 
   console.log("Shortcuts registered.");
