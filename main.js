@@ -1,10 +1,7 @@
 const { app, BrowserWindow, session, globalShortcut } = require('electron');
 
-// Ensure disableHardwareAcceleration is called BEFORE app is ready
-app.disableHardwareAcceleration();
-
 let myWindow;
-let opacityLevel = 0.5;
+let opacityLevel = 0.5; // Start at 50% opacity
 
 app.whenReady().then(() => {
   myWindow = new BrowserWindow({
@@ -17,18 +14,17 @@ app.whenReady().then(() => {
     frame: false,
     alwaysOnTop: true,
     resizable: true,
-    backgroundColor: '#00000000',
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      webSecurity: true,
+      webSecurity: false, // Allows loading restricted content
       enableWebGL: true,
       backgroundThrottling: false,
-      offscreen: false,
+      offscreen: false, // Ensures fast rendering on-screen
       enableBlinkFeatures: "WebGL2,Accelerated2dCanvas",
       disableBlinkFeatures: "AutomationControlled",
-      webviewTag: true,
-      spellcheck: false,
+      webviewTag: true, // Enables WebView support
+      spellcheck: false, // Reduces unnecessary processing
     }
   });
 
@@ -42,13 +38,12 @@ app.whenReady().then(() => {
             height: 30px;
             background: rgba(0, 0, 0, 0.2);
             -webkit-app-region: drag;
-            -webkit-user-select: none;
             position: absolute;
             top: 0;
             left: 0;
             z-index: 9999;
           }
-          .web-content {
+          webview {
             position: absolute;
             top: 30px;
             width: 100%;
@@ -59,39 +54,86 @@ app.whenReady().then(() => {
       </head>
       <body>
         <div class="drag-bar"></div>
-        <iframe class="web-content" src="https://thatoneweirddev.github.io/arch/" frameborder="0"></iframe>
+        <webview 
+          id="webview"
+          src="https://thatoneweirddev.github.io/arch/" 
+          allowpopups 
+          disablewebsecurity
+          webpreferences="javascript=yes, plugins=no">
+        </webview>
+        <script>
+          const webview = document.getElementById('webview');
+
+          webview.addEventListener('dom-ready', () => {
+            webview.insertCSS("::-webkit-scrollbar { display: none; }"); // Hide scrollbars
+            console.log("WebView Loaded.");
+          });
+
+          // Handle new window requests (force links to open in the same webview)
+          webview.addEventListener('new-window', (event) => {
+            event.preventDefault();
+            webview.src = event.url; // Load link inside the same webview
+          });
+
+          // Handle navigation within the same webview
+          webview.addEventListener('will-navigate', (event) => {
+            event.preventDefault();
+            webview.src = event.url; // Load link inside the same webview
+          });
+        </script>
       </body>
     </html>`);
 
-  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    const responseHeaders = { ...details.responseHeaders };
-    for (const key of Object.keys(responseHeaders)) {
-      if (key.toLowerCase() === 'x-frame-options' || key.toLowerCase() === 'content-security-policy') {
-        delete responseHeaders[key];
-      }
+  // Remove CSP and X-Frame-Options
+  session.defaultSession.webRequest.onHeadersReceived(
+    { urls: ["*://*/*"] },
+    async (details, callback) => {
+      const responseHeaders = details.responseHeaders;
+      Object.keys(responseHeaders).forEach(key => {
+        if (key.toLowerCase() === 'x-frame-options' ||
+            key.toLowerCase() === 'content-security-policy') {
+          delete responseHeaders[key];
+        }
+      });
+      callback({ cancel: false, responseHeaders });
     }
-    callback({ cancel: false, responseHeaders });
-  });
+  );
 
+  // Boost rendering priority
   myWindow.webContents.setBackgroundThrottling(false);
-  myWindow.webContents.setFrameRate(120);
+  myWindow.webContents.setFrameRate(120); // High frame rate for smooth rendering
 
-  const adjustOpacity = (increase) => {
-    opacityLevel = increase
-      ? Math.min(opacityLevel + 0.05, 1)
-      : Math.max(opacityLevel - 0.05, 0.02);
+  const increaseOpacity = () => {
+    opacityLevel = Math.min(opacityLevel + 0.05, 1);
     myWindow.setOpacity(opacityLevel);
-    console.log(`Opacity: ${opacityLevel}`);
+    console.log(`Increased opacity: ${opacityLevel}`);
   };
 
-  globalShortcut.register('CommandOrControl+Option+=', () => adjustOpacity(true));
-  globalShortcut.register('Control+Alt+=', () => adjustOpacity(true));
-  globalShortcut.register('CommandOrControl+Option+-', () => adjustOpacity(false));
-  globalShortcut.register('Control+Alt+-', () => adjustOpacity(false));
+  const decreaseOpacity = () => {
+    opacityLevel = Math.max(opacityLevel - 0.05, 0.02);
+    myWindow.setOpacity(opacityLevel);
+    console.log(`Decreased opacity: ${opacityLevel}`);
+  };
+
+  // Register shortcuts for opacity adjustments
+  ['CommandOrControl+Option+=', 'Control+Alt+='].forEach(shortcut =>
+    globalShortcut.register(shortcut, increaseOpacity)
+  );
+
+  ['CommandOrControl+Option+-', 'Control+Alt+-'].forEach(shortcut =>
+    globalShortcut.register(shortcut, decreaseOpacity)
+  );
 
   globalShortcut.register('Command+H', () => {
-    myWindow.hide();
-    console.log("Window hidden (Cmd+H pressed)");
+    if (myWindow) {
+      myWindow.hide();
+      console.log("Window hidden (Cmd+H pressed)");
+    }
+  });
+
+  myWindow.on('close', () => {
+    myWindow.webContents.executeJavaScript('document.getElementById("webview")?.remove();');
+    console.log("WebView destroyed to free resources.");
   });
 
   console.log("Shortcuts registered.");
