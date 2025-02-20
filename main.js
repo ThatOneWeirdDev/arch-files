@@ -28,7 +28,7 @@ app.whenReady().then(() => {
     }
   });
 
-  myWindow.loadURL(`data:text/html;charset=utf-8,
+  const htmlContent = `
     <html>
       <head>
         <style>
@@ -65,32 +65,33 @@ app.whenReady().then(() => {
           const webview = document.getElementById('webview');
 
           webview.addEventListener('dom-ready', () => {
-            webview.insertCSS("::-webkit-scrollbar { display: none; }"); // Hide scrollbars
+            webview.insertCSS("::-webkit-scrollbar { display: none; }");
             console.log("WebView Loaded.");
           });
 
-          // Handle new window requests (force links to open in the same webview)
           webview.addEventListener('new-window', (event) => {
             event.preventDefault();
-            webview.src = event.url; // Load link inside the same webview
+            webview.src = event.url;
           });
 
-          // Handle navigation within the same webview
           webview.addEventListener('will-navigate', (event) => {
             event.preventDefault();
-            webview.src = event.url; // Load link inside the same webview
+            webview.src = event.url;
           });
 
           webview.addEventListener('dom-ready', () => {
-            webview.executeJavaScript(`
+            webview.executeJavaScript(\`
               window.open = (url) => {
-                location.href = url; // Force links to open in the same window
+                location.href = url;
               };
-            `);
+            \`);
           });
         </script>
       </body>
-    </html>`);
+    </html>
+  `;
+
+  myWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
 
   // Remove CSP and X-Frame-Options
   session.defaultSession.webRequest.onHeadersReceived(
