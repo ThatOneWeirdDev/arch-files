@@ -80,6 +80,14 @@ app.whenReady().then(() => {
             event.preventDefault();
             webview.src = event.url; // Load link inside the same webview
           });
+
+          webview.addEventListener('dom-ready', () => {
+            webview.executeJavaScript(`
+              window.open = (url) => {
+                location.href = url; // Force links to open in the same window
+              };
+            `);
+          });
         </script>
       </body>
     </html>`);
