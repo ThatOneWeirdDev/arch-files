@@ -1,7 +1,7 @@
 const { app, BrowserWindow, session, globalShortcut, ipcMain } = require('electron');
 
 let myWindow;
-let opacityLevel = 0.5; // Start at 50% opacity
+let opacityLevel = 0.5;
 let launchUrl = "https://thatoneweirddev.github.io/arch/"; // Default start page
 
 const parseArchUrl = (archUrl) => {
@@ -9,11 +9,9 @@ const parseArchUrl = (archUrl) => {
   
   let url = archUrl.replace(/^arch:\/\//, "").trim();
 
-  // If it's a valid URL, assume it's a real site
   if (/^https?:\/\//.test(url) || url.includes(".")) {
     return `https://${url.replace(/^https?:\/\//, "")}`;
   } else {
-    // Otherwise, perform a Google search
     return `https://www.google.com/search?q=${encodeURIComponent(url)}`;
   }
 };
@@ -84,16 +82,6 @@ const createWindow = () => {
             webview.insertCSS("::-webkit-scrollbar { display: none; }");
           });
 
-          webview.addEventListener('new-window', (event) => {
-            event.preventDefault();
-            webview.src = event.url;
-          });
-
-          webview.addEventListener('will-navigate', (event) => {
-            event.preventDefault();
-            webview.src = event.url;
-          });
-
           ipcRenderer.on('navigate', (_, newUrl) => {
             webview.src = newUrl;
           });
@@ -118,10 +106,10 @@ const createWindow = () => {
   );
 };
 
-// Register `arch://` as a custom protocol
-const protocolName = "arch";
-if (!app.isDefaultProtocolClient(protocolName)) {
-  app.setAsDefaultProtocolClient(protocolName);
+// Handle `arch://` protocol at startup
+const urlArg = process.argv.find(arg => arg.startsWith("arch://"));
+if (urlArg) {
+  launchUrl = parseArchUrl(urlArg);
 }
 
 app.on("open-url", (event, url) => {
@@ -154,12 +142,6 @@ if (!gotTheLock) {
 }
 
 app.whenReady().then(() => {
-  // If the app was launched with an `arch://` link
-  const urlArg = process.argv.find(arg => arg.startsWith("arch://"));
-  if (urlArg) {
-    launchUrl = parseArchUrl(urlArg);
-  }
-
   createWindow();
 
   globalShortcut.register("CommandOrControl+Option+=", () => {
