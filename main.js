@@ -3,7 +3,7 @@ const { app, BrowserWindow, session, globalShortcut } = require('electron');
 let myWindow;
 let opacityLevel = 0.5; // Start at 50% opacity
 
-const createWindow = (url = "https://thatoneweirddev.github.io/arch/") => {
+const createWindow = (targetUrl = "https://thatoneweirddev.github.io/arch/") => {
   myWindow = new BrowserWindow({
     width: 400,
     height: 400,
@@ -56,7 +56,7 @@ const createWindow = (url = "https://thatoneweirddev.github.io/arch/") => {
         <div class="drag-bar"></div>
         <webview 
           id="webview"
-          src="${url}" 
+          src="${targetUrl}" 
           allowpopups 
           disablewebsecurity
           webpreferences="javascript=yes, plugins=no">
@@ -108,11 +108,20 @@ const createWindow = (url = "https://thatoneweirddev.github.io/arch/") => {
   );
 };
 
-// Register the app as the default browser for the custom protocol
-const protocolName = "mybrowser";
+// Register the app as the default browser for the custom protocol `arch://`
+const protocolName = "arch";
 if (!app.isDefaultProtocolClient(protocolName)) {
   app.setAsDefaultProtocolClient(protocolName);
 }
+
+// Convert `arch://example.com` → `https://example.com`
+const parseArchUrl = (archUrl) => {
+  try {
+    return archUrl.replace(/^arch:\/\//, "https://");
+  } catch {
+    return "https://thatoneweirddev.github.io/arch/";
+  }
+};
 
 app.whenReady().then(() => {
   createWindow();
@@ -120,10 +129,11 @@ app.whenReady().then(() => {
   // Handle URLs when the app is opened via the protocol
   app.on("open-url", (event, url) => {
     event.preventDefault();
+    const newUrl = parseArchUrl(url);
     if (myWindow) {
-      myWindow.loadURL(url);
+      myWindow.webContents.send('navigate', newUrl);
     } else {
-      createWindow(url);
+      createWindow(newUrl);
     }
   });
 
@@ -161,9 +171,10 @@ if (!gotTheLock) {
   app.quit();
 } else {
   app.on("second-instance", (event, argv) => {
-    const url = argv.find(arg => arg.startsWith("mybrowser://"));
+    const url = argv.find(arg => arg.startsWith("arch://"));
     if (url && myWindow) {
-      myWindow.loadURL(url);
+      const parsedUrl = parseArchUrl(url);
+      myWindow.webContents.send('navigate', parsedUrl);
     }
   });
 }
