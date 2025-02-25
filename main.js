@@ -1,25 +1,24 @@
-const { app, BrowserWindow, session, globalShortcut } = require('electron');
+const { app, BrowserWindow, session, globalShortcut, ipcMain } = require('electron');
 
 let myWindow;
 let opacityLevel = 0.5; // Start at 50% opacity
+let launchUrl = "https://thatoneweirddev.github.io/arch/"; // Default start page
 
 const parseArchUrl = (archUrl) => {
-  try {
-    let url = archUrl.replace(/^arch:\/\//, "").trim();
+  if (!archUrl) return launchUrl;
+  
+  let url = archUrl.replace(/^arch:\/\//, "").trim();
 
-    // If it's a valid URL (contains a dot and no spaces), assume it's a real site
-    if (/^https?:\/\//.test(url) || url.includes(".")) {
-      return `https://${url.replace(/^https?:\/\//, "")}`;
-    } else {
-      // Otherwise, perform a Google search
-      return `https://www.google.com/search?q=${encodeURIComponent(url)}`;
-    }
-  } catch {
-    return "https://thatoneweirddev.github.io/arch/";
+  // If it's a valid URL, assume it's a real site
+  if (/^https?:\/\//.test(url) || url.includes(".")) {
+    return `https://${url.replace(/^https?:\/\//, "")}`;
+  } else {
+    // Otherwise, perform a Google search
+    return `https://www.google.com/search?q=${encodeURIComponent(url)}`;
   }
 };
 
-const createWindow = (targetUrl) => {
+const createWindow = () => {
   myWindow = new BrowserWindow({
     width: 400,
     height: 400,
@@ -72,17 +71,17 @@ const createWindow = (targetUrl) => {
         <div class="drag-bar"></div>
         <webview 
           id="webview"
-          src="${targetUrl}" 
+          src="${launchUrl}" 
           allowpopups 
           disablewebsecurity
           webpreferences="javascript=yes, plugins=no">
         </webview>
         <script>
+          const { ipcRenderer } = require('electron');
           const webview = document.getElementById('webview');
 
           webview.addEventListener('dom-ready', () => {
             webview.insertCSS("::-webkit-scrollbar { display: none; }");
-            console.log("WebView Loaded.");
           });
 
           webview.addEventListener('new-window', (event) => {
@@ -95,18 +94,9 @@ const createWindow = (targetUrl) => {
             webview.src = event.url;
           });
 
-          webview.addEventListener('dom-ready', () => {
-            webview.executeJavaScript(\`
-              window.open = (url) => {
-                location.href = url;
-              };
-            \`);
-          });
-
-          require('electron').ipcRenderer.on('navigate', (_, newUrl) => {
+          ipcRenderer.on('navigate', (_, newUrl) => {
             webview.src = newUrl;
           });
-
         </script>
       </body>
     </html>
@@ -134,20 +124,43 @@ if (!app.isDefaultProtocolClient(protocolName)) {
   app.setAsDefaultProtocolClient(protocolName);
 }
 
-app.whenReady().then(() => {
-  // Check if the app was started with an `arch://` link
-  const launchUrl = process.argv.find(arg => arg.startsWith("arch://"));
-  createWindow(parseArchUrl(launchUrl) || "https://thatoneweirddev.github.io/arch/");
+app.on("open-url", (event, url) => {
+  event.preventDefault();
+  const newUrl = parseArchUrl(url);
+  if (myWindow) {
+    myWindow.webContents.send("navigate", newUrl);
+  } else {
+    launchUrl = newUrl;
+    createWindow();
+  }
+});
 
-  app.on("open-url", (event, url) => {
-    event.preventDefault();
-    const newUrl = parseArchUrl(url);
-    if (myWindow) {
-      myWindow.webContents.send("navigate", newUrl);
-    } else {
-      createWindow(newUrl);
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on("second-instance", (event, argv) => {
+    const url = argv.find(arg => arg.startsWith("arch://"));
+    if (url) {
+      const parsedUrl = parseArchUrl(url);
+      if (myWindow) {
+        myWindow.webContents.send("navigate", parsedUrl);
+      } else {
+        launchUrl = parsedUrl;
+        createWindow();
+      }
     }
   });
+}
+
+app.whenReady().then(() => {
+  // If the app was launched with an `arch://` link
+  const urlArg = process.argv.find(arg => arg.startsWith("arch://"));
+  if (urlArg) {
+    launchUrl = parseArchUrl(urlArg);
+  }
+
+  createWindow();
 
   globalShortcut.register("CommandOrControl+Option+=", () => {
     opacityLevel = Math.min(opacityLevel + 0.05, 1);
@@ -167,24 +180,6 @@ app.whenReady().then(() => {
     myWindow.webContents.executeJavaScript('document.getElementById("webview")?.remove();');
   });
 });
-
-// Handle second-instance URLs
-const gotTheLock = app.requestSingleInstanceLock();
-if (!gotTheLock) {
-  app.quit();
-} else {
-  app.on("second-instance", (event, argv) => {
-    const url = argv.find(arg => arg.startsWith("arch://"));
-    if (url) {
-      const parsedUrl = parseArchUrl(url);
-      if (myWindow) {
-        myWindow.webContents.send("navigate", parsedUrl);
-      } else {
-        createWindow(parsedUrl);
-      }
-    }
-  });
-}
 
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
