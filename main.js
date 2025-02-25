@@ -5,7 +5,15 @@ let opacityLevel = 0.5; // Start at 50% opacity
 
 const parseArchUrl = (archUrl) => {
   try {
-    return archUrl.replace(/^arch:\/\//, "https://");
+    let url = archUrl.replace(/^arch:\/\//, "").trim();
+
+    // If it's a valid URL (contains a dot and no spaces), assume it's a real site
+    if (/^https?:\/\//.test(url) || url.includes(".")) {
+      return `https://${url.replace(/^https?:\/\//, "")}`;
+    } else {
+      // Otherwise, perform a Google search
+      return `https://www.google.com/search?q=${encodeURIComponent(url)}`;
+    }
   } catch {
     return "https://thatoneweirddev.github.io/arch/";
   }
@@ -136,6 +144,8 @@ app.whenReady().then(() => {
     const newUrl = parseArchUrl(url);
     if (myWindow) {
       myWindow.webContents.send("navigate", newUrl);
+    } else {
+      createWindow(newUrl);
     }
   });
 
@@ -165,9 +175,13 @@ if (!gotTheLock) {
 } else {
   app.on("second-instance", (event, argv) => {
     const url = argv.find(arg => arg.startsWith("arch://"));
-    if (url && myWindow) {
+    if (url) {
       const parsedUrl = parseArchUrl(url);
-      myWindow.webContents.send("navigate", parsedUrl);
+      if (myWindow) {
+        myWindow.webContents.send("navigate", parsedUrl);
+      } else {
+        createWindow(parsedUrl);
+      }
     }
   });
 }
