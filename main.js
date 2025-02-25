@@ -3,7 +3,7 @@ const { app, BrowserWindow, session, globalShortcut } = require('electron');
 let myWindow;
 let opacityLevel = 0.5; // Start at 50% opacity
 
-app.whenReady().then(() => {
+const createWindow = (url = "https://thatoneweirddev.github.io/arch/") => {
   myWindow = new BrowserWindow({
     width: 400,
     height: 400,
@@ -17,14 +17,14 @@ app.whenReady().then(() => {
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      webSecurity: false, // Allows loading restricted content
+      webSecurity: false,
       enableWebGL: true,
       backgroundThrottling: false,
-      offscreen: false, // Ensures fast rendering on-screen
+      offscreen: false,
       enableBlinkFeatures: "WebGL2,Accelerated2dCanvas",
       disableBlinkFeatures: "AutomationControlled",
-      webviewTag: true, // Enables WebView support
-      spellcheck: false, // Reduces unnecessary processing
+      webviewTag: true,
+      spellcheck: false,
     }
   });
 
@@ -56,7 +56,7 @@ app.whenReady().then(() => {
         <div class="drag-bar"></div>
         <webview 
           id="webview"
-          src="https://thatoneweirddev.github.io/arch/" 
+          src="${url}" 
           allowpopups 
           disablewebsecurity
           webpreferences="javascript=yes, plugins=no">
@@ -99,48 +99,55 @@ app.whenReady().then(() => {
     async (details, callback) => {
       const responseHeaders = details.responseHeaders;
       Object.keys(responseHeaders).forEach(key => {
-        if (key.toLowerCase() === 'x-frame-options' ||
-            key.toLowerCase() === 'content-security-policy') {
+        if (key.toLowerCase() === 'x-frame-options' || key.toLowerCase() === 'content-security-policy') {
           delete responseHeaders[key];
         }
       });
       callback({ cancel: false, responseHeaders });
     }
   );
+};
 
-  // Boost rendering priority
-  myWindow.webContents.setBackgroundThrottling(false);
-  myWindow.webContents.setFrameRate(120); // High frame rate for smooth rendering
+// Register the app as the default browser for the custom protocol
+const protocolName = "mybrowser";
+if (!app.isDefaultProtocolClient(protocolName)) {
+  app.setAsDefaultProtocolClient(protocolName);
+}
 
-  const increaseOpacity = () => {
+app.whenReady().then(() => {
+  createWindow();
+
+  // Handle URLs when the app is opened via the protocol
+  app.on("open-url", (event, url) => {
+    event.preventDefault();
+    if (myWindow) {
+      myWindow.loadURL(url);
+    } else {
+      createWindow(url);
+    }
+  });
+
+  // Register shortcuts for opacity adjustments
+  globalShortcut.register("CommandOrControl+Option+=", () => {
     opacityLevel = Math.min(opacityLevel + 0.05, 1);
     myWindow.setOpacity(opacityLevel);
     console.log(`Increased opacity: ${opacityLevel}`);
-  };
+  });
 
-  const decreaseOpacity = () => {
+  globalShortcut.register("CommandOrControl+Option+-", () => {
     opacityLevel = Math.max(opacityLevel - 0.05, 0.02);
     myWindow.setOpacity(opacityLevel);
     console.log(`Decreased opacity: ${opacityLevel}`);
-  };
+  });
 
-  // Register shortcuts for opacity adjustments
-  ['CommandOrControl+Option+=', 'Control+Alt+='].forEach(shortcut =>
-    globalShortcut.register(shortcut, increaseOpacity)
-  );
-
-  ['CommandOrControl+Option+-', 'Control+Alt+-'].forEach(shortcut =>
-    globalShortcut.register(shortcut, decreaseOpacity)
-  );
-
-  globalShortcut.register('Command+H', () => {
+  globalShortcut.register("Command+H", () => {
     if (myWindow) {
       myWindow.hide();
       console.log("Window hidden (Cmd+H pressed)");
     }
   });
 
-  myWindow.on('close', () => {
+  myWindow.on("close", () => {
     myWindow.webContents.executeJavaScript('document.getElementById("webview")?.remove();');
     console.log("WebView destroyed to free resources.");
   });
@@ -148,6 +155,19 @@ app.whenReady().then(() => {
   console.log("Shortcuts registered.");
 });
 
-app.on('will-quit', () => {
+// Handle when the app is already running and receives a URL
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on("second-instance", (event, argv) => {
+    const url = argv.find(arg => arg.startsWith("mybrowser://"));
+    if (url && myWindow) {
+      myWindow.loadURL(url);
+    }
+  });
+}
+
+app.on("will-quit", () => {
   globalShortcut.unregisterAll();
 });
