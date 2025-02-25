@@ -2,7 +2,7 @@ const { app, BrowserWindow, session, globalShortcut, ipcMain } = require('electr
 
 let myWindow;
 let opacityLevel = 0.5;
-let launchUrl = "https://thatoneweirddev.github.io/arch/"; // Default start page
+let launchUrl = "https://thatoneweirddev.github.io/arch/"; // Default page
 
 const parseArchUrl = (archUrl) => {
   if (!archUrl) return launchUrl;
@@ -111,6 +111,8 @@ const urlArg = process.argv.find(arg => arg.startsWith("arch://"));
 if (urlArg) {
   launchUrl = parseArchUrl(urlArg);
 }
+
+app.setAsDefaultProtocolClient("arch"); // 👈 Registers the protocol in the OS
 
 app.on("open-url", (event, url) => {
   event.preventDefault();
