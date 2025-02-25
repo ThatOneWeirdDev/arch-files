@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, globalShortcut, ipcMain } = require('electron');
+const { app, BrowserWindow, session, globalShortcut, ipcMain } = require("electron");
 
 let myWindow;
 let opacityLevel = 0.5;
@@ -6,7 +6,7 @@ let launchUrl = "https://thatoneweirddev.github.io/arch/"; // Default page
 
 const parseArchUrl = (archUrl) => {
   if (!archUrl) return launchUrl;
-  
+
   let url = archUrl.replace(/^arch:\/\//, "").trim();
 
   if (/^https?:\/\//.test(url) || url.includes(".")) {
@@ -15,6 +15,12 @@ const parseArchUrl = (archUrl) => {
     return `https://www.google.com/search?q=${encodeURIComponent(url)}`;
   }
 };
+
+// Handle startup arguments (Windows & Linux)
+let startupUrl = process.argv.find(arg => arg.startsWith("arch://"));
+if (startupUrl) {
+  launchUrl = parseArchUrl(startupUrl);
+}
 
 const createWindow = () => {
   myWindow = new BrowserWindow({
@@ -38,7 +44,7 @@ const createWindow = () => {
       disableBlinkFeatures: "AutomationControlled",
       webviewTag: true,
       spellcheck: false,
-    }
+    },
   });
 
   const htmlContent = `
@@ -96,23 +102,22 @@ const createWindow = () => {
     { urls: ["*://*/*"] },
     async (details, callback) => {
       const responseHeaders = details.responseHeaders;
-      Object.keys(responseHeaders).forEach(key => {
-        if (key.toLowerCase() === 'x-frame-options' || key.toLowerCase() === 'content-security-policy') {
+      Object.keys(responseHeaders).forEach((key) => {
+        if (key.toLowerCase() === "x-frame-options" || key.toLowerCase() === "content-security-policy") {
           delete responseHeaders[key];
         }
       });
       callback({ cancel: false, responseHeaders });
     }
   );
+
+  myWindow.webContents.once("did-finish-load", () => {
+    myWindow.webContents.send("navigate", launchUrl);
+  });
 };
 
-// Handle `arch://` protocol at startup
-const urlArg = process.argv.find(arg => arg.startsWith("arch://"));
-if (urlArg) {
-  launchUrl = parseArchUrl(urlArg);
-}
-
-app.setAsDefaultProtocolClient("arch"); // 👈 Registers the protocol in the OS
+// Register custom protocol
+app.setAsDefaultProtocolClient("arch");
 
 app.on("open-url", (event, url) => {
   event.preventDefault();
@@ -120,8 +125,7 @@ app.on("open-url", (event, url) => {
   if (myWindow) {
     myWindow.webContents.send("navigate", newUrl);
   } else {
-    launchUrl = newUrl;
-    createWindow();
+    launchUrl = newUrl; // Store for when window opens
   }
 });
 
@@ -130,11 +134,12 @@ if (!gotTheLock) {
   app.quit();
 } else {
   app.on("second-instance", (event, argv) => {
-    const url = argv.find(arg => arg.startsWith("arch://"));
+    const url = argv.find((arg) => arg.startsWith("arch://"));
     if (url) {
       const parsedUrl = parseArchUrl(url);
       if (myWindow) {
         myWindow.webContents.send("navigate", parsedUrl);
+        myWindow.show(); // Bring window to front
       } else {
         launchUrl = parsedUrl;
         createWindow();
