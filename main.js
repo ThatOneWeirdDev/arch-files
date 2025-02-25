@@ -3,7 +3,15 @@ const { app, BrowserWindow, session, globalShortcut } = require('electron');
 let myWindow;
 let opacityLevel = 0.5; // Start at 50% opacity
 
-const createWindow = (targetUrl = "https://thatoneweirddev.github.io/arch/") => {
+const parseArchUrl = (archUrl) => {
+  try {
+    return archUrl.replace(/^arch:\/\//, "https://");
+  } catch {
+    return "https://thatoneweirddev.github.io/arch/";
+  }
+};
+
+const createWindow = (targetUrl) => {
   myWindow = new BrowserWindow({
     width: 400,
     height: 400,
@@ -86,6 +94,11 @@ const createWindow = (targetUrl = "https://thatoneweirddev.github.io/arch/") => 
               };
             \`);
           });
+
+          require('electron').ipcRenderer.on('navigate', (_, newUrl) => {
+            webview.src = newUrl;
+          });
+
         </script>
       </body>
     </html>
@@ -93,7 +106,6 @@ const createWindow = (targetUrl = "https://thatoneweirddev.github.io/arch/") => 
 
   myWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
 
-  // Remove CSP and X-Frame-Options
   session.defaultSession.webRequest.onHeadersReceived(
     { urls: ["*://*/*"] },
     async (details, callback) => {
@@ -108,64 +120,45 @@ const createWindow = (targetUrl = "https://thatoneweirddev.github.io/arch/") => 
   );
 };
 
-// Register the app as the default browser for the custom protocol `arch://`
+// Register `arch://` as a custom protocol
 const protocolName = "arch";
 if (!app.isDefaultProtocolClient(protocolName)) {
   app.setAsDefaultProtocolClient(protocolName);
 }
 
-// Convert `arch://example.com` → `https://example.com`
-const parseArchUrl = (archUrl) => {
-  try {
-    return archUrl.replace(/^arch:\/\//, "https://");
-  } catch {
-    return "https://thatoneweirddev.github.io/arch/";
-  }
-};
-
 app.whenReady().then(() => {
-  createWindow();
+  // Check if the app was started with an `arch://` link
+  const launchUrl = process.argv.find(arg => arg.startsWith("arch://"));
+  createWindow(parseArchUrl(launchUrl) || "https://thatoneweirddev.github.io/arch/");
 
-  // Handle URLs when the app is opened via the protocol
   app.on("open-url", (event, url) => {
     event.preventDefault();
     const newUrl = parseArchUrl(url);
     if (myWindow) {
-      myWindow.webContents.send('navigate', newUrl);
-    } else {
-      createWindow(newUrl);
+      myWindow.webContents.send("navigate", newUrl);
     }
   });
 
-  // Register shortcuts for opacity adjustments
   globalShortcut.register("CommandOrControl+Option+=", () => {
     opacityLevel = Math.min(opacityLevel + 0.05, 1);
     myWindow.setOpacity(opacityLevel);
-    console.log(`Increased opacity: ${opacityLevel}`);
   });
 
   globalShortcut.register("CommandOrControl+Option+-", () => {
     opacityLevel = Math.max(opacityLevel - 0.05, 0.02);
     myWindow.setOpacity(opacityLevel);
-    console.log(`Decreased opacity: ${opacityLevel}`);
   });
 
   globalShortcut.register("Command+H", () => {
-    if (myWindow) {
-      myWindow.hide();
-      console.log("Window hidden (Cmd+H pressed)");
-    }
+    if (myWindow) myWindow.hide();
   });
 
   myWindow.on("close", () => {
     myWindow.webContents.executeJavaScript('document.getElementById("webview")?.remove();');
-    console.log("WebView destroyed to free resources.");
   });
-
-  console.log("Shortcuts registered.");
 });
 
-// Handle when the app is already running and receives a URL
+// Handle second-instance URLs
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
@@ -174,7 +167,7 @@ if (!gotTheLock) {
     const url = argv.find(arg => arg.startsWith("arch://"));
     if (url && myWindow) {
       const parsedUrl = parseArchUrl(url);
-      myWindow.webContents.send('navigate', parsedUrl);
+      myWindow.webContents.send("navigate", parsedUrl);
     }
   });
 }
