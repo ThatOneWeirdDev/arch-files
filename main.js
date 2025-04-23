@@ -150,15 +150,17 @@ if (!gotTheLock) {
 app.whenReady().then(() => {
   createWindow();
 
-  // Main window opacity
+  // Sync opacity for both windows
   globalShortcut.register("CommandOrControl+Option+=", () => {
     opacityLevel = Math.min(opacityLevel + 0.05, 1);
     myWindow.setOpacity(opacityLevel);
+    if (leAIWindow) leAIWindow.setOpacity(opacityLevel); // Sync opacity
   });
 
   globalShortcut.register("CommandOrControl+Option+-", () => {
     opacityLevel = Math.max(opacityLevel - 0.05, 0.02);
     myWindow.setOpacity(opacityLevel);
+    if (leAIWindow) leAIWindow.setOpacity(opacityLevel); // Sync opacity
   });
 
   globalShortcut.register("Command+H", () => {
@@ -177,15 +179,15 @@ app.whenReady().then(() => {
       height: 500,
       x: 60,
       y: 60,
-      opacity: 0.5,
+      opacity: opacityLevel, // Start with the same opacity
       transparent: true,
       frame: false,
       alwaysOnTop: true,
       resizable: true,
       webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        webSecurity: true,
+        nodeIntegration: true,  // Allow JS execution on external websites like `puters.js`
+        contextIsolation: false,
+        webSecurity: false,
       },
     });
 
