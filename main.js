@@ -1,6 +1,7 @@
 const { app, BrowserWindow, session, globalShortcut, ipcMain } = require("electron");
 
 let myWindow;
+let leAIWindow = null;
 let opacityLevel = 0.5;
 let launchUrl = "https://thatoneweirddev.github.io/arch/"; // Default page
 
@@ -16,7 +17,6 @@ const parseArchUrl = (archUrl) => {
   }
 };
 
-// Handle startup arguments (Windows & Linux)
 let startupUrl = process.argv.find(arg => arg.startsWith("arch://"));
 if (startupUrl) {
   launchUrl = parseArchUrl(startupUrl);
@@ -116,7 +116,6 @@ const createWindow = () => {
   });
 };
 
-// Register custom protocol
 app.setAsDefaultProtocolClient("arch");
 
 app.on("open-url", (event, url) => {
@@ -125,7 +124,7 @@ app.on("open-url", (event, url) => {
   if (myWindow) {
     myWindow.webContents.send("navigate", newUrl);
   } else {
-    launchUrl = newUrl; // Store for when window opens
+    launchUrl = newUrl;
   }
 });
 
@@ -139,7 +138,7 @@ if (!gotTheLock) {
       const parsedUrl = parseArchUrl(url);
       if (myWindow) {
         myWindow.webContents.send("navigate", parsedUrl);
-        myWindow.show(); // Bring window to front
+        myWindow.show();
       } else {
         launchUrl = parsedUrl;
         createWindow();
@@ -151,6 +150,7 @@ if (!gotTheLock) {
 app.whenReady().then(() => {
   createWindow();
 
+  // Main window opacity
   globalShortcut.register("CommandOrControl+Option+=", () => {
     opacityLevel = Math.min(opacityLevel + 0.05, 1);
     myWindow.setOpacity(opacityLevel);
@@ -165,10 +165,16 @@ app.whenReady().then(() => {
     if (myWindow) myWindow.hide();
   });
 
-    globalShortcut.register("CommandOrControl+I", () => {
-    const googleWindow = new BrowserWindow({
-      width: 400,
-      height: 400,
+  // LE-AI window
+  globalShortcut.register("CommandOrControl+I", () => {
+    if (leAIWindow && !leAIWindow.isDestroyed()) {
+      leAIWindow.focus();
+      return;
+    }
+
+    leAIWindow = new BrowserWindow({
+      width: 500,
+      height: 500,
       x: 60,
       y: 60,
       opacity: 0.5,
@@ -183,7 +189,7 @@ app.whenReady().then(() => {
       },
     });
 
-    const googleHtml = `
+    const leAIHtml = `
       <html>
         <head>
           <style>
@@ -209,12 +215,27 @@ app.whenReady().then(() => {
         </head>
         <body>
           <div class="drag-bar"></div>
-          <iframe src="https://www.google.com" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
+          <iframe src="https://thatoneweirddev.github.io/LE-AI/" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
         </body>
       </html>
     `;
 
-    googleWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(googleHtml)}`);
+    leAIWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(leAIHtml)}`);
+  });
+
+  // LE-AI window opacity control
+  globalShortcut.register("CommandOrControl+Shift+Option+=", () => {
+    if (leAIWindow && !leAIWindow.isDestroyed()) {
+      const curr = leAIWindow.getOpacity();
+      leAIWindow.setOpacity(Math.min(curr + 0.05, 1));
+    }
+  });
+
+  globalShortcut.register("CommandOrControl+Shift+Option+-", () => {
+    if (leAIWindow && !leAIWindow.isDestroyed()) {
+      const curr = leAIWindow.getOpacity();
+      leAIWindow.setOpacity(Math.max(curr - 0.05, 0.02));
+    }
   });
 
   myWindow.on("close", () => {
