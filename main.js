@@ -165,6 +165,58 @@ app.whenReady().then(() => {
     if (myWindow) myWindow.hide();
   });
 
+    globalShortcut.register("CommandOrControl+I", () => {
+    const googleWindow = new BrowserWindow({
+      width: 400,
+      height: 400,
+      x: 60,
+      y: 60,
+      opacity: 0.5,
+      transparent: true,
+      frame: false,
+      alwaysOnTop: true,
+      resizable: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        webSecurity: true,
+      },
+    });
+
+    const googleHtml = `
+      <html>
+        <head>
+          <style>
+            body { margin: 0; overflow: hidden; }
+            .drag-bar {
+              width: 100%;
+              height: 30px;
+              background: rgba(0, 0, 0, 0.2);
+              -webkit-app-region: drag;
+              position: absolute;
+              top: 0;
+              left: 0;
+              z-index: 9999;
+            }
+            iframe {
+              position: absolute;
+              top: 30px;
+              width: 100%;
+              height: calc(100% - 30px);
+              border: none;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="drag-bar"></div>
+          <iframe src="https://www.google.com" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
+        </body>
+      </html>
+    `;
+
+    googleWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(googleHtml)}`);
+  });
+
   myWindow.on("close", () => {
     myWindow.webContents.executeJavaScript('document.getElementById("webview")?.remove();');
   });
