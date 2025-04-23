@@ -5,6 +5,7 @@ let leAIWindow = null;
 let opacityLevel = 0.5;
 let launchUrl = "https://thatoneweirddev.github.io/arch/"; // Default page
 
+// Parse protocol URLs
 const parseArchUrl = (archUrl) => {
   if (!archUrl) return launchUrl;
 
@@ -17,11 +18,13 @@ const parseArchUrl = (archUrl) => {
   }
 };
 
+// Handle startup arguments (Windows & Linux)
 let startupUrl = process.argv.find(arg => arg.startsWith("arch://"));
 if (startupUrl) {
   launchUrl = parseArchUrl(startupUrl);
 }
 
+// Create main window
 const createWindow = () => {
   myWindow = new BrowserWindow({
     width: 400,
@@ -150,24 +153,28 @@ if (!gotTheLock) {
 app.whenReady().then(() => {
   createWindow();
 
-  // Sync opacity for both windows
+  // Main window opacity control
   globalShortcut.register("CommandOrControl+Option+=", () => {
     opacityLevel = Math.min(opacityLevel + 0.05, 1);
     myWindow.setOpacity(opacityLevel);
-    if (leAIWindow) leAIWindow.setOpacity(opacityLevel); // Sync opacity
+    if (leAIWindow && !leAIWindow.isDestroyed()) {
+      leAIWindow.setOpacity(opacityLevel);
+    }
   });
 
   globalShortcut.register("CommandOrControl+Option+-", () => {
     opacityLevel = Math.max(opacityLevel - 0.05, 0.02);
     myWindow.setOpacity(opacityLevel);
-    if (leAIWindow) leAIWindow.setOpacity(opacityLevel); // Sync opacity
+    if (leAIWindow && !leAIWindow.isDestroyed()) {
+      leAIWindow.setOpacity(opacityLevel);
+    }
   });
 
   globalShortcut.register("Command+H", () => {
     if (myWindow) myWindow.hide();
   });
 
-  // LE-AI window
+  // LE-AI window (access any URL)
   globalShortcut.register("CommandOrControl+I", () => {
     if (leAIWindow && !leAIWindow.isDestroyed()) {
       leAIWindow.focus();
@@ -179,15 +186,15 @@ app.whenReady().then(() => {
       height: 500,
       x: 60,
       y: 60,
-      opacity: opacityLevel, // Start with the same opacity
+      opacity: opacityLevel,
       transparent: true,
       frame: false,
       alwaysOnTop: true,
       resizable: true,
       webPreferences: {
-        nodeIntegration: true,  // Allow JS execution on external websites like `puters.js`
-        contextIsolation: false,
-        webSecurity: false,
+        nodeIntegration: false,
+        contextIsolation: true,
+        webSecurity: true,
       },
     });
 
@@ -217,12 +224,24 @@ app.whenReady().then(() => {
         </head>
         <body>
           <div class="drag-bar"></div>
-          <iframe src="https://thatoneweirddev.github.io/LE-AI/" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
+          <iframe id="leAIFrame" src="https://thatoneweirddev.github.io/LE-AI/" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
         </body>
       </html>
     `;
 
     leAIWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(leAIHtml)}`);
+  });
+
+  // Allow LE-AI window to navigate to any new URL
+  ipcMain.on('navigate-le-ai', (event, url) => {
+    if (leAIWindow && !leAIWindow.isDestroyed()) {
+      const leAIFrame = leAIWindow.webContents.executeJavaScript('document.getElementById("leAIFrame")');
+      leAIFrame.then((frame) => {
+        if (frame) {
+          frame.src = url;
+        }
+      });
+    }
   });
 
   // LE-AI window opacity control
