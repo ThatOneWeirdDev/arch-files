@@ -1,14 +1,13 @@
 const { app, BrowserWindow, session, globalShortcut, ipcMain } = require("electron");
 
-let myWindow;
+let mainWindow, leAIWindow;
 let opacityLevel = 0.5;
 let launchUrl = "https://thatoneweirddev.github.io/arch/";
+let isHidden = false;
 
 const parseArchUrl = (archUrl) => {
   if (!archUrl) return launchUrl;
-
   let url = archUrl.replace(/^arch:\/\//, "").trim();
-
   if (/^https?:\/\//.test(url) || url.includes(".")) {
     return `https://${url.replace(/^https?:\/\//, "")}`;
   } else {
@@ -16,19 +15,27 @@ const parseArchUrl = (archUrl) => {
   }
 };
 
-// Handle startup arguments
 let startupUrl = process.argv.find(arg => arg.startsWith("arch://"));
 if (startupUrl) {
   launchUrl = parseArchUrl(startupUrl);
 }
 
-const createWindow = () => {
-  myWindow = new BrowserWindow({
+function fadeToOpacity(win, targetOpacity, step = 0.02, interval = 16) {
+  let current = 1.0;
+  const fade = setInterval(() => {
+    current = Math.max(current - step, targetOpacity);
+    win.setOpacity(current);
+    if (current <= targetOpacity) clearInterval(fade);
+  }, interval);
+}
+
+const createMainWindow = () => {
+  mainWindow = new BrowserWindow({
     width: 400,
     height: 400,
     x: 20,
     y: 20,
-    opacity: opacityLevel,
+    opacity: 1,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -38,6 +45,7 @@ const createWindow = () => {
       contextIsolation: false,
       webSecurity: false,
       webviewTag: true,
+      devTools: false
     },
   });
 
@@ -77,46 +85,88 @@ const createWindow = () => {
         <script>
           const { ipcRenderer } = require('electron');
           const webview = document.getElementById('webview');
-
-          ipcRenderer.on('navigate', (_, newUrl) => {
-            webview.src = newUrl;
-          });
-
+          ipcRenderer.on('navigate', (_, newUrl) => { webview.src = newUrl; });
           webview.addEventListener('dom-ready', () => {
             webview.insertCSS("::-webkit-scrollbar { display: none; }");
-          });
-
-          webview.addEventListener('new-window', (e) => {
-            webview.src = e.url;
-          });
-
-          webview.addEventListener('will-navigate', (e) => {
-            webview.src = e.url;
           });
         </script>
       </body>
     </html>
   `;
 
-  myWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+  mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
 
-  // Remove headers blocking iframe/webview content
-  session.defaultSession.webRequest.onHeadersReceived(
-    { urls: ["*://*/*"] },
-    async (details, callback) => {
-      const responseHeaders = details.responseHeaders;
-      for (const key in responseHeaders) {
-        const lower = key.toLowerCase();
-        if (lower === "x-frame-options" || lower === "content-security-policy") {
-          delete responseHeaders[key];
-        }
+  session.defaultSession.webRequest.onHeadersReceived({ urls: ["*://*/*"] }, (details, callback) => {
+    const headers = details.responseHeaders;
+    for (const key in headers) {
+      const lower = key.toLowerCase();
+      if (lower === "x-frame-options" || lower === "content-security-policy") {
+        delete headers[key];
       }
-      callback({ cancel: false, responseHeaders });
     }
-  );
+    callback({ cancel: false, responseHeaders: headers });
+  });
 
-  myWindow.webContents.once("did-finish-load", () => {
-    myWindow.webContents.send("navigate", launchUrl);
+  mainWindow.webContents.once("did-finish-load", () => {
+    mainWindow.webContents.send("navigate", launchUrl);
+    fadeToOpacity(mainWindow, opacityLevel);
+  });
+};
+
+const createLEAIWindow = () => {
+  leAIWindow = new BrowserWindow({
+    width: 500,
+    height: 500,
+    x: 60,
+    y: 60,
+    opacity: 1,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    resizable: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: false,
+      devTools: false
+    },
+  });
+
+  const leAIHtml = `
+    <html>
+      <head>
+        <style>
+          body { margin: 0; overflow: hidden; }
+          .drag-bar {
+            width: 100%;
+            height: 30px;
+            background: rgba(0, 0, 0, 0.2);
+            -webkit-app-region: drag;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 9999;
+          }
+          iframe {
+            position: absolute;
+            top: 30px;
+            width: 100%;
+            height: calc(100% - 30px);
+            border: none;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="drag-bar"></div>
+        <iframe src="https://thatoneweirddev.github.io/LE-AI/" sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-modals"></iframe>
+      </body>
+    </html>
+  `;
+
+  leAIWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(leAIHtml)}`);
+
+  leAIWindow.webContents.once("did-finish-load", () => {
+    fadeToOpacity(leAIWindow, opacityLevel);
   });
 };
 
@@ -125,107 +175,89 @@ app.setAsDefaultProtocolClient("arch");
 app.on("open-url", (event, url) => {
   event.preventDefault();
   const newUrl = parseArchUrl(url);
-  if (myWindow) {
-    myWindow.webContents.send("navigate", newUrl);
+  if (mainWindow) {
+    mainWindow.webContents.send("navigate", newUrl);
   } else {
     launchUrl = newUrl;
   }
 });
 
-const gotTheLock = app.requestSingleInstanceLock();
-if (!gotTheLock) {
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
   app.quit();
 } else {
   app.on("second-instance", (event, argv) => {
-    const url = argv.find((arg) => arg.startsWith("arch://"));
+    const url = argv.find(arg => arg.startsWith("arch://"));
     if (url) {
       const parsedUrl = parseArchUrl(url);
-      if (myWindow) {
-        myWindow.webContents.send("navigate", parsedUrl);
-        myWindow.show();
+      if (mainWindow) {
+        mainWindow.webContents.send("navigate", parsedUrl);
+        mainWindow.show();
       } else {
         launchUrl = parsedUrl;
-        createWindow();
+        createMainWindow();
       }
     }
   });
 }
 
 app.whenReady().then(() => {
-  createWindow();
+  createMainWindow();
 
-  // Opacity up
   globalShortcut.register("CommandOrControl+Option+=", () => {
     opacityLevel = Math.min(opacityLevel + 0.05, 1);
-    BrowserWindow.getAllWindows().forEach(win => win.setOpacity(opacityLevel));
+    if (!isHidden) {
+      if (mainWindow) mainWindow.setOpacity(opacityLevel);
+      if (leAIWindow) leAIWindow.setOpacity(opacityLevel);
+    }
   });
 
-  // Opacity down
   globalShortcut.register("CommandOrControl+Option+-", () => {
     opacityLevel = Math.max(opacityLevel - 0.05, 0.02);
-    BrowserWindow.getAllWindows().forEach(win => win.setOpacity(opacityLevel));
+    if (!isHidden) {
+      if (mainWindow) mainWindow.setOpacity(opacityLevel);
+      if (leAIWindow) leAIWindow.setOpacity(opacityLevel);
+    }
   });
 
-  // Hide
   globalShortcut.register("Command+H", () => {
-    if (myWindow) myWindow.hide();
+    if (!isHidden) {
+      if (mainWindow) {
+        mainWindow.setOpacity(0);
+        mainWindow.setIgnoreMouseEvents(true);
+      }
+      if (leAIWindow) {
+        leAIWindow.setOpacity(0);
+        leAIWindow.setIgnoreMouseEvents(true);
+      }
+      isHidden = true;
+    }
   });
 
-  // Open LE-AI window
+  app.on("activate", () => {
+    if (isHidden) {
+      if (mainWindow) {
+        mainWindow.setOpacity(opacityLevel);
+        mainWindow.setIgnoreMouseEvents(false);
+      }
+      if (leAIWindow) {
+        leAIWindow.setOpacity(opacityLevel);
+        leAIWindow.setIgnoreMouseEvents(false);
+      }
+      isHidden = false;
+    }
+  });
+
   globalShortcut.register("CommandOrControl+I", () => {
-    const leAIWindow = new BrowserWindow({
-      width: 500,
-      height: 500,
-      x: 60,
-      y: 60,
-      opacity: opacityLevel,
-      transparent: true,
-      frame: false,
-      alwaysOnTop: true,
-      resizable: true,
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        webSecurity: false,
-      },
-    });
-
-    const leAIHtml = `
-      <html>
-        <head>
-          <style>
-            body { margin: 0; overflow: hidden; }
-            .drag-bar {
-              width: 100%;
-              height: 30px;
-              background: rgba(0, 0, 0, 0.2);
-              -webkit-app-region: drag;
-              position: absolute;
-              top: 0;
-              left: 0;
-              z-index: 9999;
-            }
-            iframe {
-              position: absolute;
-              top: 30px;
-              width: 100%;
-              height: calc(100% - 30px);
-              border: none;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="drag-bar"></div>
-          <iframe src="https://thatoneweirddev.github.io/LE-AI/" sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-modals"></iframe>
-        </body>
-      </html>
-    `;
-
-    leAIWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(leAIHtml)}`);
+    if (!leAIWindow) {
+      createLEAIWindow();
+    } else {
+      leAIWindow.show();
+    }
   });
 
-  myWindow.on("close", () => {
-    myWindow.webContents.executeJavaScript('document.getElementById("webview")?.remove();');
+  mainWindow.on("close", () => {
+    mainWindow.webContents.executeJavaScript('document.getElementById("webview")?.remove();');
   });
 });
 
