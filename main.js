@@ -85,6 +85,14 @@ const createWindow = () => {
           webview.addEventListener('dom-ready', () => {
             webview.insertCSS("::-webkit-scrollbar { display: none; }");
           });
+
+          webview.addEventListener('new-window', (e) => {
+            webview.src = e.url;
+          });
+
+          webview.addEventListener('will-navigate', (e) => {
+            webview.src = e.url;
+          });
         </script>
       </body>
     </html>
@@ -178,7 +186,7 @@ app.whenReady().then(() => {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
-        webSecurity: false, // Allow embedding anything
+        webSecurity: false,
       },
     });
 
