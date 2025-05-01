@@ -1,11 +1,10 @@
-const { app, BrowserWindow, session, globalShortcut, ipcMain } = require("electron");
+const { app, BrowserWindow, session, globalShortcut, ipcMain, dialog } = require("electron");
 
 let mainWindow, leAIWindow;
 let opacityLevel = 0.5;
 let launchUrl = "https://thatoneweirddev.github.io/arch/";
 let isHidden = false;
 
-// URL parser unchanged
 const parseArchUrl = (archUrl) => {
   if (!archUrl) return launchUrl;
   let url = archUrl.replace(/^arch:\/\//, "").trim();
@@ -19,7 +18,6 @@ const parseArchUrl = (archUrl) => {
 let startupUrl = process.argv.find(arg => arg.startsWith("arch://"));
 if (startupUrl) launchUrl = parseArchUrl(startupUrl);
 
-// Fade *in* from 0 → targetOpacity
 function fadeToOpacity(win, targetOpacity, step = 0.02, interval = 16) {
   let current = 0;
   win.setOpacity(0);
@@ -41,7 +39,7 @@ const createMainWindow = () => {
     frame: false,
     alwaysOnTop: true,
     resizable: true,
-    show: false,              // start hidden
+    show: false,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -75,7 +73,6 @@ const createMainWindow = () => {
 
   mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
 
-  // strip frame-busting headers
   session.defaultSession.webRequest.onHeadersReceived(
     { urls: ["*://*/*"] },
     (details, callback) => {
@@ -90,7 +87,6 @@ const createMainWindow = () => {
     }
   );
 
-  // when load completes, show + fade
   mainWindow.webContents.once("did-finish-load", () => {
     mainWindow.show();
     mainWindow.webContents.send("navigate", launchUrl);
@@ -109,7 +105,7 @@ const createLEAIWindow = () => {
     frame: false,
     alwaysOnTop: true,
     resizable: true,
-    show: false,               // start hidden
+    show: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -171,9 +167,15 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(() => {
+    // Show a simple "Hello!" dialog on app start
+    dialog.showMessageBox({
+      type: "info",
+      message: "Hello!",
+      buttons: ["OK"]
+    });
+
     createMainWindow();
 
-    // opacity shortcuts
     globalShortcut.register("CommandOrControl+Option+=", () => {
       opacityLevel = Math.min(opacityLevel + 0.05, 1);
       if (!isHidden) {
@@ -188,7 +190,6 @@ if (!app.requestSingleInstanceLock()) {
         leAIWindow?.setOpacity(opacityLevel);
       }
     });
-    // hide/show on Cmd+H / activate
     globalShortcut.register("Command+H", () => {
       if (!isHidden) {
         mainWindow?.setOpacity(0);
@@ -207,7 +208,6 @@ if (!app.requestSingleInstanceLock()) {
         isHidden = false;
       }
     });
-    // LE-AI window on Demand
     globalShortcut.register("CommandOrControl+I", () => {
       if (!leAIWindow) {
         createLEAIWindow();
@@ -215,7 +215,7 @@ if (!app.requestSingleInstanceLock()) {
         leAIWindow.show();
       }
     });
-    // clean-up
+
     mainWindow.on("close", () => {
       mainWindow.webContents.executeJavaScript(
         'document.getElementById("webview")?.remove();'
