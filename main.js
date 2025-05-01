@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, globalShortcut, ipcMain } = require("electron");
+const { app, BrowserWindow, session, globalShortcut, ipcMain, dialog } = require("electron");
 
 let mainWindow, leAIWindow;
 let opacityLevel = 0.5;
@@ -21,11 +21,11 @@ if (startupUrl) {
 }
 
 function fadeToOpacity(win, targetOpacity, step = 0.02, interval = 16) {
-  let current = 0.0;
+  let current = 1.0;
   const fade = setInterval(() => {
-    current = Math.min(current + step, targetOpacity);
+    current = Math.max(current - step, targetOpacity);
     win.setOpacity(current);
-    if (current >= targetOpacity) clearInterval(fade);
+    if (current <= targetOpacity) clearInterval(fade);
   }, interval);
 }
 
@@ -35,7 +35,7 @@ const createMainWindow = () => {
     height: 400,
     x: 20,
     y: 20,
-    opacity: 0, // Start fully transparent
+    opacity: 1,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -119,7 +119,7 @@ const createLEAIWindow = () => {
     height: 500,
     x: 60,
     y: 60,
-    opacity: 0, // Start fully transparent
+    opacity: 1,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -203,6 +203,14 @@ if (!gotLock) {
 
 app.whenReady().then(() => {
   createMainWindow();
+
+  // Show the "Test" message box
+  dialog.showMessageBox({
+    type: 'info',
+    buttons: ['OK'],
+    title: 'Hello',
+    message: 'Test'
+  });
 
   globalShortcut.register("CommandOrControl+Option+=", () => {
     opacityLevel = Math.min(opacityLevel + 0.05, 1);
