@@ -21,11 +21,11 @@ if (startupUrl) {
 }
 
 function fadeToOpacity(win, targetOpacity, step = 0.02, interval = 16) {
-  let current = 1.0;
+  let current = 0.0;
   const fade = setInterval(() => {
-    current = Math.max(current - step, targetOpacity);
+    current = Math.min(current + step, targetOpacity);
     win.setOpacity(current);
-    if (current <= targetOpacity) clearInterval(fade);
+    if (current >= targetOpacity) clearInterval(fade);
   }, interval);
 }
 
@@ -35,7 +35,7 @@ const createMainWindow = () => {
     height: 400,
     x: 20,
     y: 20,
-    opacity: 1,
+    opacity: 0, // Start fully transparent
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -119,7 +119,7 @@ const createLEAIWindow = () => {
     height: 500,
     x: 60,
     y: 60,
-    opacity: 1,
+    opacity: 0, // Start fully transparent
     transparent: true,
     frame: false,
     alwaysOnTop: true,
