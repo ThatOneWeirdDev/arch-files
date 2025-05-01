@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, globalShortcut, ipcMain, dialog } = require("electron");
+const { app, BrowserWindow, session, globalShortcut, ipcMain } = require("electron");
 
 let mainWindow, leAIWindow;
 let opacityLevel = 0.5;
@@ -21,11 +21,14 @@ if (startupUrl) {
 }
 
 function fadeToOpacity(win, targetOpacity, step = 0.02, interval = 16) {
-  let current = 1.0;
+  let current = 0.0;
+  win.setOpacity(current);
+  win.show();
+
   const fade = setInterval(() => {
-    current = Math.max(current - step, targetOpacity);
+    current = Math.min(current + step, targetOpacity);
     win.setOpacity(current);
-    if (current <= targetOpacity) clearInterval(fade);
+    if (current >= targetOpacity) clearInterval(fade);
   }, interval);
 }
 
@@ -35,11 +38,12 @@ const createMainWindow = () => {
     height: 400,
     x: 20,
     y: 20,
-    opacity: 1,
+    opacity: 0,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
     resizable: true,
+    show: false,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -107,7 +111,7 @@ const createMainWindow = () => {
     callback({ cancel: false, responseHeaders: headers });
   });
 
-  mainWindow.webContents.once("did-finish-load", () => {
+  mainWindow.once("ready-to-show", () => {
     mainWindow.webContents.send("navigate", launchUrl);
     fadeToOpacity(mainWindow, opacityLevel);
   });
@@ -119,11 +123,12 @@ const createLEAIWindow = () => {
     height: 500,
     x: 60,
     y: 60,
-    opacity: 1,
+    opacity: 0,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
     resizable: true,
+    show: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -165,7 +170,7 @@ const createLEAIWindow = () => {
 
   leAIWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(leAIHtml)}`);
 
-  leAIWindow.webContents.once("did-finish-load", () => {
+  leAIWindow.once("ready-to-show", () => {
     fadeToOpacity(leAIWindow, opacityLevel);
   });
 };
@@ -203,14 +208,6 @@ if (!gotLock) {
 
 app.whenReady().then(() => {
   createMainWindow();
-
-  // Show the "Test" message box
-  dialog.showMessageBox({
-    type: 'info',
-    buttons: ['OK'],
-    title: 'Hello',
-    message: 'Test'
-  });
 
   globalShortcut.register("CommandOrControl+Option+=", () => {
     opacityLevel = Math.min(opacityLevel + 0.05, 1);
