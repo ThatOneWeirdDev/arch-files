@@ -1,7 +1,7 @@
 const { app, BrowserWindow, session, globalShortcut, ipcMain } = require("electron");
 
 let mainWindow, leAIWindow;
-let opacityLevel = 0.5;
+let opacityLevel = 1.0; // Target full opacity
 let launchUrl = "https://thatoneweirddev.github.io/arch/";
 let isHidden = false;
 
@@ -20,15 +20,16 @@ if (startupUrl) {
   launchUrl = parseArchUrl(startupUrl);
 }
 
-function fadeToOpacity(win, targetOpacity, step = 0.02, interval = 16) {
-  let current = 1.0; // Start from 100% opacity (fully opaque)
+// Fade from transparent to opaque
+function fadeToOpacity(win, targetOpacity, step = 0.01, interval = 30) {
+  let current = 0.0;
   win.setOpacity(current);
   win.show();
 
   const fade = setInterval(() => {
-    current = Math.max(current - step, targetOpacity); // Fade to target opacity
+    current = Math.min(current + step, targetOpacity);
     win.setOpacity(current);
-    if (current <= targetOpacity) clearInterval(fade);
+    if (current >= targetOpacity) clearInterval(fade);
   }, interval);
 }
 
@@ -38,7 +39,7 @@ const createMainWindow = () => {
     height: 400,
     x: 20,
     y: 20,
-    opacity: 1.0, // Start fully opaque
+    opacity: 0,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -113,7 +114,7 @@ const createMainWindow = () => {
 
   mainWindow.once("ready-to-show", () => {
     mainWindow.webContents.send("navigate", launchUrl);
-    fadeToOpacity(mainWindow, 0.0); // Fade to fully transparent (0% opacity)
+    fadeToOpacity(mainWindow, opacityLevel);
   });
 };
 
@@ -123,7 +124,7 @@ const createLEAIWindow = () => {
     height: 500,
     x: 60,
     y: 60,
-    opacity: 1.0, // Start fully opaque
+    opacity: 0,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -171,7 +172,7 @@ const createLEAIWindow = () => {
   leAIWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(leAIHtml)}`);
 
   leAIWindow.once("ready-to-show", () => {
-    fadeToOpacity(leAIWindow, 0.0); // Fade to fully transparent (0% opacity)
+    fadeToOpacity(leAIWindow, opacityLevel);
   });
 };
 
