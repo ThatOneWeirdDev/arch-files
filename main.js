@@ -21,7 +21,7 @@ if (startupUrl) {
   launchUrl = parseArchUrl(startupUrl);
 }
 
-// Fading helper function
+// Fading helper function - fixed to start from 0 and fade to target
 function fadeToOpacity(win, targetOpacity = 1.0, step = 0.05, interval = 10) {
   let current = 0.0;
   win.setOpacity(current);
@@ -30,7 +30,9 @@ function fadeToOpacity(win, targetOpacity = 1.0, step = 0.05, interval = 10) {
   const fade = setInterval(() => {
     current = Math.min(current + step, targetOpacity);
     win.setOpacity(current);
-    if (current >= targetOpacity) clearInterval(fade);
+    if (current >= targetOpacity) {
+      clearInterval(fade);
+    }
   }, interval);
 }
 
@@ -41,12 +43,12 @@ const createMainWindow = () => {
     height: 400,
     x: 20,
     y: 20,
-    opacity: 0,
+    opacity: 0, // Start completely transparent
     transparent: true,
     frame: false,
     alwaysOnTop: true,
     resizable: true,
-    show: false,
+    show: false, // Don't show until fade starts
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -131,12 +133,12 @@ const createLEAIWindow = () => {
     height: 500,
     x: 60,
     y: 60,
-    opacity: 0,
+    opacity: 0, // Start completely transparent
     transparent: true,
     frame: false,
     alwaysOnTop: true,
     resizable: true,
-    show: false,
+    show: false, // Don't show until fade starts
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -205,6 +207,11 @@ if (!gotLock) {
       const parsedUrl = parseArchUrl(url);
       if (mainWindow) {
         mainWindow.webContents.send("navigate", parsedUrl);
+        if (isHidden) {
+          mainWindow.setOpacity(opacityLevel);
+          mainWindow.setIgnoreMouseEvents(false);
+          isHidden = false;
+        }
         mainWindow.show();
       } else {
         launchUrl = parsedUrl;
@@ -265,6 +272,11 @@ app.whenReady().then(() => {
     if (!leAIWindow) {
       createLEAIWindow();
     } else {
+      if (isHidden) {
+        leAIWindow.setOpacity(opacityLevel);
+        leAIWindow.setIgnoreMouseEvents(false);
+        isHidden = false;
+      }
       leAIWindow.show();
     }
   });
