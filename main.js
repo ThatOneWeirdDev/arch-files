@@ -21,14 +21,14 @@ if (startupUrl) {
 }
 
 function fadeToOpacity(win, targetOpacity, step = 0.02, interval = 16) {
-  let current = 0.0;
+  let current = 1.0; // Start from 100% opacity (fully opaque)
   win.setOpacity(current);
   win.show();
 
   const fade = setInterval(() => {
-    current = Math.min(current + step, targetOpacity);
+    current = Math.max(current - step, targetOpacity); // Fade to target opacity
     win.setOpacity(current);
-    if (current >= targetOpacity) clearInterval(fade);
+    if (current <= targetOpacity) clearInterval(fade);
   }, interval);
 }
 
@@ -38,7 +38,7 @@ const createMainWindow = () => {
     height: 400,
     x: 20,
     y: 20,
-    opacity: 0,
+    opacity: 1.0, // Start fully opaque
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -113,7 +113,7 @@ const createMainWindow = () => {
 
   mainWindow.once("ready-to-show", () => {
     mainWindow.webContents.send("navigate", launchUrl);
-    fadeToOpacity(mainWindow, opacityLevel);
+    fadeToOpacity(mainWindow, 0.0); // Fade to fully transparent (0% opacity)
   });
 };
 
@@ -123,7 +123,7 @@ const createLEAIWindow = () => {
     height: 500,
     x: 60,
     y: 60,
-    opacity: 0,
+    opacity: 1.0, // Start fully opaque
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -171,7 +171,7 @@ const createLEAIWindow = () => {
   leAIWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(leAIHtml)}`);
 
   leAIWindow.once("ready-to-show", () => {
-    fadeToOpacity(leAIWindow, opacityLevel);
+    fadeToOpacity(leAIWindow, 0.0); // Fade to fully transparent (0% opacity)
   });
 };
 
