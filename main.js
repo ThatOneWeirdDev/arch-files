@@ -5,6 +5,7 @@ let opacityLevel = 1.0; // Target full opacity
 let launchUrl = "https://thatoneweirddev.github.io/arch/";
 let isHidden = false;
 
+// Parse custom arch:// protocol
 const parseArchUrl = (archUrl) => {
   if (!archUrl) return launchUrl;
   let url = archUrl.replace(/^arch:\/\//, "").trim();
@@ -20,8 +21,8 @@ if (startupUrl) {
   launchUrl = parseArchUrl(startupUrl);
 }
 
-// Fade from transparent to opaque
-function fadeToOpacity(win, targetOpacity, step = 0.01, interval = 30) {
+// Fading helper function
+function fadeToOpacity(win, targetOpacity = 1.0, step = 0.05, interval = 10) {
   let current = 0.0;
   win.setOpacity(current);
   win.show();
@@ -33,6 +34,7 @@ function fadeToOpacity(win, targetOpacity, step = 0.01, interval = 30) {
   }, interval);
 }
 
+// Create main app window
 const createMainWindow = () => {
   mainWindow = new BrowserWindow({
     width: 400,
@@ -93,6 +95,7 @@ const createMainWindow = () => {
           ipcRenderer.on('navigate', (_, newUrl) => { webview.src = newUrl; });
           webview.addEventListener('dom-ready', () => {
             webview.insertCSS("::-webkit-scrollbar { display: none; }");
+            ipcRenderer.send('webview-ready');
           });
         </script>
       </body>
@@ -112,12 +115,16 @@ const createMainWindow = () => {
     callback({ cancel: false, responseHeaders: headers });
   });
 
+  ipcMain.once("webview-ready", () => {
+    fadeToOpacity(mainWindow, opacityLevel);
+  });
+
   mainWindow.once("ready-to-show", () => {
     mainWindow.webContents.send("navigate", launchUrl);
-    fadeToOpacity(mainWindow, opacityLevel);
   });
 };
 
+// Create LE-AI window
 const createLEAIWindow = () => {
   leAIWindow = new BrowserWindow({
     width: 500,
@@ -262,7 +269,7 @@ app.whenReady().then(() => {
     }
   });
 
-  mainWindow.on("close", () => {
+  mainWindow?.on("close", () => {
     mainWindow.webContents.executeJavaScript('document.getElementById("webview")?.remove();');
   });
 });
