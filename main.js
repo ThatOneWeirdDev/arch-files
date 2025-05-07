@@ -1,11 +1,47 @@
-const { app, BrowserWindow, session, globalShortcut, ipcMain } = require("electron");
+const { app, BrowserWindow, session, globalShortcut, ipcMain, dialog, nativeImage } = require("electron");
+const fs = require("fs");
+const path = require("path");
 
 let mainWindow, leAIWindow;
-let opacityLevel = 1.0; // Target full opacity
+let opacityLevel = 1.0;
 let launchUrl = "https://thatoneweirddev.github.io/arch/";
 let isHidden = false;
 
-// Parse custom arch:// protocol
+const settingsPath = path.join(app.getPath("userData"), "background-settings.json");
+const customBgPath = path.join(app.getPath("userData"), "custom-bg.jpeg");
+
+const loadSettings = () => {
+  if (fs.existsSync(settingsPath)) {
+    return JSON.parse(fs.readFileSync(settingsPath));
+  }
+  return { useCustom: false };
+};
+
+const saveSettings = (settings) => {
+  fs.writeFileSync(settingsPath, JSON.stringify(settings));
+};
+
+const injectCustomBackground = (win) => {
+  if (!fs.existsSync(customBgPath)) return;
+
+  const dataURL = nativeImage.createFromPath(customBgPath).toDataURL();
+  const script = `
+    document.addEventListener('DOMContentLoaded', () => {
+      const style = document.createElement('style');
+      style.innerHTML = \`
+        body {
+          background-image: url('${dataURL}');
+          background-size: cover;
+          background-repeat: no-repeat;
+          background-attachment: fixed;
+        }
+      \`;
+      document.head.appendChild(style);
+    });
+  `;
+  win.webContents.executeJavaScript(script);
+};
+
 const parseArchUrl = (archUrl) => {
   if (!archUrl) return launchUrl;
   let url = archUrl.replace(/^arch:\/\//, "").trim();
@@ -21,7 +57,6 @@ if (startupUrl) {
   launchUrl = parseArchUrl(startupUrl);
 }
 
-// Fading helper function - fixed to start from 0 and fade to target
 function fadeToOpacity(win, targetOpacity = 1.0, step = 0.05, interval = 10) {
   let current = 0.0;
   win.setOpacity(current);
@@ -36,19 +71,18 @@ function fadeToOpacity(win, targetOpacity = 1.0, step = 0.05, interval = 10) {
   }, interval);
 }
 
-// Create main app window
 const createMainWindow = () => {
   mainWindow = new BrowserWindow({
     width: 400,
     height: 400,
     x: 20,
     y: 20,
-    opacity: 0, // Start completely transparent
+    opacity: 0,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
     resizable: true,
-    show: false, // Don't show until fade starts
+    show: false,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -118,6 +152,8 @@ const createMainWindow = () => {
   });
 
   ipcMain.once("webview-ready", () => {
+    const settings = loadSettings();
+    if (settings.useCustom) injectCustomBackground(mainWindow);
     fadeToOpacity(mainWindow, opacityLevel);
   });
 
@@ -126,19 +162,18 @@ const createMainWindow = () => {
   });
 };
 
-// Create LE-AI window
 const createLEAIWindow = () => {
   leAIWindow = new BrowserWindow({
     width: 500,
     height: 500,
     x: 60,
     y: 60,
-    opacity: 0, // Start completely transparent
+    opacity: 0,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
     resizable: true,
-    show: false, // Don't show until fade starts
+    show: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -254,17 +289,28 @@ app.whenReady().then(() => {
     }
   });
 
-  app.on("activate", () => {
-    if (isHidden) {
-      if (mainWindow) {
-        mainWindow.setOpacity(opacityLevel);
-        mainWindow.setIgnoreMouseEvents(false);
+  globalShortcut.register("CommandOrControl+Option+B", async () => {
+    const choice = await dialog.showMessageBox({
+      type: "question",
+      buttons: ["Use Default", "Upload Custom"],
+      title: "Background Preference",
+      message: "Choose a background option:",
+      cancelId: 2
+    });
+
+    if (choice.response === 0) {
+      saveSettings({ useCustom: false });
+    } else if (choice.response === 1) {
+      const result = await dialog.showOpenDialog({
+        title: "Select Background Image",
+        properties: ["openFile"],
+        filters: [{ name: "Images", extensions: ["jpg", "jpeg", "png"] }]
+      });
+
+      if (!result.canceled && result.filePaths.length > 0) {
+        fs.copyFileSync(result.filePaths[0], customBgPath);
+        saveSettings({ useCustom: true });
       }
-      if (leAIWindow) {
-        leAIWindow.setOpacity(opacityLevel);
-        leAIWindow.setIgnoreMouseEvents(false);
-      }
-      isHidden = false;
     }
   });
 
